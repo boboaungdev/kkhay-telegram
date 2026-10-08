@@ -1,6 +1,6 @@
 {
   "name": "@kkhay/telegram",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official grammY & Telegram Mini Apps crypto payment gateway SDK for K Khay (USDT, USDC, BNB, ETH).",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
