@@ -1,0 +1,65 @@
+{
+  "name": "@kkhay/telegram",
+  "version": "1.0.0",
+  "description": "Official grammY & Telegram Mini Apps crypto payment gateway SDK for K Khay (USDT, USDC, BNB, ETH).",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run lint && npm run test && npm run build"
+  },
+  "keywords": [
+    "kkhay",
+    "crypto",
+    "telegram",
+    "telegram-bot",
+    "telegram-mini-app",
+    "tma",
+    "payment-gateway",
+    "grammy",
+    "grammyjs",
+    "usdt",
+    "usdc",
+    "bnb",
+    "ethereum",
+    "web3"
+  ],
+  "author": "K Khay <support@kkhay.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/boboaungdev/kkhay-telegram.git"
+  },
+  "bugs": {
+    "url": "https://github.com/boboaungdev/kkhay-telegram/issues"
+  },
+  "homepage": "https://kkhay.com",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "grammy": "^1.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "grammy": "^1.35.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
