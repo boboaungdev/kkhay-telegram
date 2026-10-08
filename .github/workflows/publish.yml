@@ -1,14 +1,16 @@
-name: Release
+name: Publish to npm
 
 on:
+  release:
+    types: [published]
   push:
     tags:
       - "v*"
   workflow_dispatch:
 
 jobs:
-  publish:
-    name: Publish to npm & GitHub Release
+  npm-publish:
+    name: Publish package to npm
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,25 +22,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: "https://registry.npmjs.org"
+          node-version: "22.x"
+
+      - name: Upgrade npm to latest (Required for OIDC Trusted Publishing)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Tests
-        run: npm run test
-
-      - name: Build Package
-        run: npm run build
-
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Build and Test
+        run: npm run prepublishOnly
 
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+      - name: Publish to npm (Trusted Publishing via OIDC)
+        run: npm publish --access public --provenance
 
