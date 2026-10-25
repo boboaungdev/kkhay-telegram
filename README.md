@@ -6,20 +6,19 @@
 [![grammY](https://img.shields.io/badge/grammY-Plugin-2CA5E0.svg)](https://grammy.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18.0.0-339933.svg)](https://nodejs.org/)
 
-The official **grammY & Telegram Mini Apps (TMA)** crypto payment gateway SDK for **[K Khay](https://kkhay.com)**.
+The official **grammY & Telegram Mini Apps (TMA)** crypto payment gateway SDK for **[K Khay Gateway](https://kkhay.com)**.
 
-Accept non-custodial and custodial crypto payments (**USDT, USDC, BNB, ETH** across **BNB Smart Chain, Polygon, Arbitrum, Base, and Ethereum**) directly in your Telegram bots and Mini Apps with **instant on-chain verification** and **zero chargebacks**.
+Accept non-custodial and sovereign crypto payments (**USDT, USDC, BTC, ETH, SOL, TON, BNB, TRX, DOGE, XRP, LTC** across **190+ blockchain networks**) directly in your Telegram bots and Mini Apps with **instant on-chain verification** and **zero chargebacks**.
 
 ---
 
 ## 🌟 Features
 
-* **100% TypeScript**: Built from the ground up for **[grammY](https://grammy.dev)** with strict type safety and autocomplete.
+* **100% TypeScript**: Built from the ground up for **[grammY](https://grammy.dev)** with strict type safety and zero `any`.
 * **Telegram Mini App (TMA) Native**: Opens checkout directly in Telegram's popup/full-screen WebApp (`web_app: { url }`) — users never leave Telegram!
-* **Multi-Chain Stablecoins**: Accept **USDT** & **USDC** across BSC, Polygon, Arbitrum, Base, and Ethereum mainnet.
-* **Native Tokens**: Accept **BNB** and **ETH** natively.
+* **190+ Blockchain Networks**: Native support for EVM chains (BNB Chain, Polygon, Arbitrum, Base, Ethereum), Solana, TON, Tron, Bitcoin, XRPL, Dogecoin, and Litecoin.
 * **Interactive Inline Keyboards**: Automatic message formatting with dynamic payment buttons, status re-checkers, and cancellation handlers.
-* **Auto-Message Updates**: Clicking **"🔄 Check Status"** queries the blockchain and edits the Telegram message to *"✅ Payment Confirmed!"* in real time.
+* **Auto-Message Updates**: Clicking **"🔄 Check Status"** queries the gateway and edits the Telegram message to *"✅ Payment Confirmed!"* in real time.
 * **Cryptographic IPN Webhooks**: Built-in HMAC-SHA256 signature verification and event dispatching.
 * **Dual ESM / CJS**: Modern ES modules and CommonJS distribution.
 
@@ -78,7 +77,7 @@ bot.start();
 
 By default, `@kkhay/telegram` renders payment buttons using **Telegram Mini App WebViews** (`web_app: { url }`), allowing customers to complete payment without switching apps.
 
-If you prefer opening the checkout in an external browser instead, simply pass `useMiniApp: false`:
+If you prefer opening the checkout in an external browser instead, pass `useMiniApp: false`:
 
 ```typescript
 await sendKkhayInvoice(ctx, kkhay, {
@@ -130,13 +129,35 @@ app.post("/webhook/kkhay", express.raw({ type: "application/json" }), async (req
   try {
     await webhookHandler.handle(req.body, signature);
     res.status(200).json({ received: true });
-  } catch (err: any) {
-    res.status(400).send(`Webhook error: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(400).send(`Webhook error: ${message}`);
   }
 });
 
 app.listen(3000, () => console.log("Webhook listener running on port 3000"));
 ```
+
+---
+
+## 🌐 Supported Cryptocurrencies & Networks
+
+Supports 190+ blockchain networks and 500+ cryptocurrencies:
+
+| Ecosystem | Networks | Supported Assets |
+| :--- | :--- | :--- |
+| **BNB Smart Chain** | BSC Mainnet, BSC Testnet | USDT, USDC, BNB, and BEP-20 tokens |
+| **Polygon** | Polygon PoS, Amoy Testnet | USDT, USDC, POL, and ERC-20 tokens |
+| **Arbitrum** | Arbitrum One, Nova, Sepolia | USDT, USDC, ETH, ARB |
+| **Base** | Base Mainnet, Base Sepolia | USDC, ETH, and Base tokens |
+| **Ethereum** | Ethereum Mainnet, Sepolia | USDT, USDC, ETH, and ERC-20 tokens |
+| **Solana** | Solana Mainnet, Devnet | SOL, USDT, USDC, and SPL tokens |
+| **TON** | TON Mainnet, Testnet | TON, USDT, and Jettons |
+| **Tron** | Tron Mainnet, Shasta | TRX, USDT (TRC-20), USDC |
+| **Bitcoin** | Bitcoin Mainnet, Testnet | BTC |
+| **XRPL** | XRP Ledger Mainnet, Testnet | XRP |
+| **Dogecoin** | Dogecoin Mainnet | DOGE |
+| **Litecoin** | Litecoin Mainnet | LTC |
 
 ---
 
@@ -146,8 +167,8 @@ app.listen(3000, () => console.log("Webhook listener running on port 3000"));
 
 | Option | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `apiKey` | `string` | **Required** | Your K Khay Merchant API Key. |
-| `baseUrl` | `string` | `https://api.kkhay.com` | Custom self-hosted gateway URL if applicable. |
+| `apiKey` | `string` | **Required** | Your K Khay Gateway API Key. |
+| `baseUrl` | `string` | `https://api.kkhay.com` | Base Gateway API URL. |
 | `webhookSecret` | `string` | `undefined` | Secret key used for HMAC-SHA256 signature verification. |
 | `defaultCurrency` | `string` | `USD` | Default 3-letter currency code for invoices. |
 | `timeout` | `number` | `15000` | HTTP request timeout in milliseconds. |

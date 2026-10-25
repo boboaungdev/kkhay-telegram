@@ -3,7 +3,8 @@
  * @license MIT
  */
 
-import type { Context, Middleware, MiddlewareFn } from "grammy";
+import type { Context, MiddlewareFn } from "grammy";
+import type { InlineKeyboardMarkup as GrammyInlineKeyboardMarkup } from "grammy/types";
 import { KkhayTelegram } from "../client.js";
 import type {
   CreateInvoiceInput,
@@ -25,11 +26,11 @@ export interface KkhayGrammyOptions extends KkhayConfig {
  */
 export function kkhayPlugin<C extends Context = Context>(
   options: KkhayGrammyOptions
-): MiddlewareFn<C & KkhayGrammyContextFlavor> {
+): MiddlewareFn<C> {
   const client = new KkhayTelegram(options);
 
   return async (ctx, next) => {
-    (ctx as any).kkhay = client;
+    Object.assign(ctx, { kkhay: client });
 
     // Handle "Check Status" callback query
     if (ctx.callbackQuery?.data?.startsWith("kkhay_check:")) {
@@ -37,8 +38,9 @@ export function kkhayPlugin<C extends Context = Context>(
       if (invoiceId) {
         try {
           const invoice = await client.getInvoice(invoiceId);
+          const upperStatus = String(invoice.status || "").toUpperCase();
 
-          if (invoice.status === "PAID" || invoice.status === "CONFIRMED") {
+          if (upperStatus === "PAID" || upperStatus === "CONFIRMED") {
             const paidText = client.formatPaidMessage(invoice);
             await ctx.editMessageText(paidText, {
               parse_mode: "HTML",
@@ -51,14 +53,15 @@ export function kkhayPlugin<C extends Context = Context>(
             return;
           } else {
             await ctx.answerCallbackQuery({
-              text: `Status: ${invoice.status || "PENDING"} (Waiting for blockchain confirmation)`,
+              text: `Status: ${invoice.status || "WAITING"} (Waiting for blockchain confirmation)`,
               show_alert: true,
             });
             return;
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
           await ctx.answerCallbackQuery({
-            text: `Error checking status: ${err.message}`,
+            text: `Error checking status: ${msg}`,
             show_alert: true,
           });
           return;
@@ -105,8 +108,8 @@ export async function sendKkhayInvoice(
   const formatted = client.formatInvoiceMessage(invoice, renderOptions);
 
   await ctx.reply(formatted.text, {
-    parse_mode: formatted.parse_mode as any,
-    reply_markup: formatted.reply_markup as any,
+    parse_mode: formatted.parse_mode,
+    reply_markup: formatted.reply_markup as unknown as GrammyInlineKeyboardMarkup,
   });
 
   return invoice;

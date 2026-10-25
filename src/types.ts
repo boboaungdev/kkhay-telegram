@@ -4,17 +4,48 @@
  */
 
 export type InvoiceStatus =
+  | "WAITING"
+  | "PAID"
+  | "EXPIRED"
+  | "CANCELED"
   | "PENDING"
   | "CONFIRMED"
-  | "PAID"
   | "PARTIAL"
-  | "EXPIRED"
   | "CANCELLED";
+
+export type CryptoNetwork =
+  | "bsc"
+  | "polygon"
+  | "arbitrum"
+  | "base"
+  | "ethereum"
+  | "solana"
+  | "ton"
+  | "tron"
+  | "bitcoin"
+  | "xrpl"
+  | "dogecoin"
+  | "litecoin"
+  | (string & {});
+
+export type CryptoToken =
+  | "USDT"
+  | "USDC"
+  | "BTC"
+  | "ETH"
+  | "SOL"
+  | "TON"
+  | "BNB"
+  | "DOGE"
+  | "XRP"
+  | "TRX"
+  | "LTC"
+  | (string & {});
 
 export interface KkhayConfig {
   /**
-   * K Khay Merchant API Key.
-   * Obtain from your K Khay Merchant Dashboard under API Keys.
+   * K Khay Gateway API Key.
+   * Obtain from your K Khay Gateway Dashboard under API Keys.
    */
   apiKey: string;
 
@@ -67,6 +98,26 @@ export interface CreateInvoiceInput {
   currency?: string;
 
   /**
+   * Price amount alias.
+   */
+  priceAmount?: number;
+
+  /**
+   * Price currency alias.
+   */
+  priceCurrency?: string;
+
+  /**
+   * Pre-selected crypto network (e.g., bsc, solana, ton, tron, polygon).
+   */
+  payNetwork?: CryptoNetwork | string;
+
+  /**
+   * Pre-selected crypto token (e.g., USDT, USDC, BTC, SOL).
+   */
+  payToken?: CryptoToken | string;
+
+  /**
    * Invoice title shown to customer.
    */
   title?: string;
@@ -92,6 +143,16 @@ export interface CreateInvoiceInput {
   returnUrl?: string;
 
   /**
+   * Custom redirect URL alias.
+   */
+  redirectUrl?: string;
+
+  /**
+   * Custom cancel URL.
+   */
+  cancelUrl?: string;
+
+  /**
    * Webhook URL to receive IPN notifications.
    */
   callbackUrl?: string;
@@ -99,16 +160,25 @@ export interface CreateInvoiceInput {
 
 export interface InvoiceData {
   id: string;
+  gatewayId?: string;
+  gateway_id?: string;
   orderId: string;
   amount: number;
   currency: string;
-  status: InvoiceStatus;
+  priceAmount?: number;
+  priceCurrency?: string;
+  payAmount?: string;
+  payToken?: string;
+  payNetwork?: string;
+  status: InvoiceStatus | string;
   checkoutUrl: string;
+  hostedUrl?: string;
+  depositAddress?: string;
+  network?: CryptoNetwork | string;
+  amountPaid?: number;
+  txHash?: string;
   createdAt: string;
   expiresAt?: string;
-  txHash?: string;
-  network?: string;
-  amountPaid?: number;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -116,12 +186,15 @@ export interface InvoiceData {
 export interface InvoiceResponse {
   ok?: boolean;
   data?: InvoiceData;
+  invoice?: InvoiceData;
   id?: string;
+  gatewayId?: string;
   orderId?: string;
   amount?: number;
   currency?: string;
-  status?: InvoiceStatus;
+  status?: InvoiceStatus | string;
   checkoutUrl?: string;
+  hostedUrl?: string;
   paymentUrl?: string;
   [key: string]: unknown;
 }
@@ -137,7 +210,7 @@ export interface TelegramInvoiceRenderOptions {
 
   /**
    * Custom text for the payment button.
-   * @default "💳 Pay with Crypto (USDT, USDC, BNB, ETH)"
+   * @default "💳 Pay with Crypto (190+ Chains)"
    */
   payButtonText?: string;
 
@@ -202,4 +275,3 @@ export interface WebhookHandlerCallbacks {
   onCancelled?: (event: WebhookEvent) => Promise<void> | void;
   onAny?: (event: WebhookEvent) => Promise<void> | void;
 }
-

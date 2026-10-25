@@ -9,18 +9,66 @@ import type {
   FormattedMessageResult,
   InlineKeyboardMarkup,
   InvoiceData,
-  InvoiceResponse,
+  InvoiceStatus,
   KkhayConfig,
   TelegramInvoiceRenderOptions,
   WebhookEvent,
 } from "./types.js";
 
+function normalizeInvoice(raw: unknown): InvoiceData {
+  const inv = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const hostedUrl =
+    typeof inv.hostedUrl === "string"
+      ? inv.hostedUrl
+      : typeof inv.checkoutUrl === "string"
+      ? inv.checkoutUrl
+      : typeof inv.paymentUrl === "string"
+      ? inv.paymentUrl
+      : undefined;
+  const checkoutUrl = hostedUrl || "https://kkhay.com/pay";
+  const amount = Number(inv.amount ?? inv.priceAmount ?? 0);
+  const currency = String(inv.currency ?? inv.priceCurrency ?? "USD").toUpperCase();
+
+  return {
+    ...inv,
+    id: String(inv.id || inv.invoiceId || ""),
+    gatewayId: inv.gatewayId || inv.gateway_id ? String(inv.gatewayId || inv.gateway_id) : undefined,
+    gateway_id: inv.gateway_id || inv.gatewayId ? String(inv.gateway_id || inv.gatewayId) : undefined,
+    orderId: String(inv.orderId || inv.id || ""),
+    amount,
+    currency,
+    priceAmount: inv.priceAmount !== undefined ? Number(inv.priceAmount) : amount,
+    priceCurrency: inv.priceCurrency !== undefined ? String(inv.priceCurrency).toUpperCase() : currency,
+    payAmount: inv.payAmount !== undefined ? String(inv.payAmount) : undefined,
+    payToken: inv.payToken !== undefined ? String(inv.payToken) : undefined,
+    payNetwork: inv.payNetwork !== undefined ? String(inv.payNetwork) : undefined,
+    status: (inv.status as InvoiceStatus) || "WAITING",
+    checkoutUrl,
+    hostedUrl,
+    depositAddress: typeof inv.depositAddress === "string" ? inv.depositAddress : undefined,
+    network:
+      typeof inv.network === "string"
+        ? inv.network
+        : typeof inv.payNetwork === "string"
+        ? inv.payNetwork
+        : undefined,
+    amountPaid: inv.amountPaid !== undefined ? Number(inv.amountPaid) : undefined,
+    txHash: typeof inv.txHash === "string" ? inv.txHash : undefined,
+    createdAt: typeof inv.createdAt === "string" ? inv.createdAt : new Date().toISOString(),
+    expiresAt: typeof inv.expiresAt === "string" ? inv.expiresAt : undefined,
+    metadata:
+      typeof inv.metadata === "object" && inv.metadata !== null
+        ? (inv.metadata as Record<string, unknown>)
+        : undefined,
+  };
+}
+
 export class KkhayTelegram {
-  private readonly apiKey: string;
-  private readonly baseUrl: string;
-  private readonly webhookSecret?: string;
-  private readonly defaultCurrency: string;
-  private readonly timeout: number;
+  readonly apiKey: string;
+  readonly baseUrl: string;
+  readonly webhookSecret?: string;
+  readonly defaultCurrency: string;
+  readonly timeout: number;
 
   constructor(config: KkhayConfig) {
     if (!config.apiKey || typeof config.apiKey !== "string") {
@@ -61,28 +109,32 @@ export class KkhayTelegram {
           Accept: "application/json",
           "Content-Type": "application/json",
           "x-api-key": this.apiKey,
-          "User-Agent": "@kkhay/telegram/1.0.0 (Node.js)",
+          "User-Agent": "@kkhay/telegram/1.0.4 (Node.js)",
         },
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
 
       const text = await response.text();
-      let data: any;
+      let data: Record<string, unknown> = {};
       try {
-        data = text ? JSON.parse(text) : {};
+        data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
       } catch {
         data = { raw: text };
       }
 
       if (!response.ok) {
-        const errorMsg = data?.message || data?.error || response.statusText || "API Error";
+        const errorMsg =
+          (typeof data.message === "string" ? data.message : undefined) ||
+          (typeof data.error === "string" ? data.error : undefined) ||
+          response.statusText ||
+          "API Error";
         throw new Error(`K Khay API error (${response.status}): ${errorMsg}`);
       }
 
       return data as T;
-    } catch (err: any) {
-      if (err.name === "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
         throw new Error(`K Khay API request timed out after ${this.timeout}ms`);
       }
       throw err;
@@ -97,8 +149,12 @@ export class KkhayTelegram {
   public async createInvoice(input: CreateInvoiceInput): Promise<InvoiceData> {
     const payload = {
       orderId: input.orderId || `tg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      amount: input.amount,
-      currency: (input.currency || this.defaultCurrency).toUpperCase(),
+      amount: input.amount ?? input.priceAmount,
+      currency: (input.currency || input.priceCurrency || this.defaultCurrency).toUpperCase(),
+      priceAmount: input.priceAmount ?? input.amount,
+      priceCurrency: (input.priceCurrency || input.currency || this.defaultCurrency).toUpperCase(),
+      payNetwork: input.payNetwork,
+      payToken: input.payToken,
       title: input.title || `Invoice #${input.orderId || "Payment"}`,
       description: input.description,
       customer: input.customer,
@@ -106,23 +162,15 @@ export class KkhayTelegram {
         source: "telegram",
         ...input.metadata,
       },
-      returnUrl: input.returnUrl,
+      returnUrl: input.returnUrl || input.redirectUrl,
+      redirectUrl: input.redirectUrl || input.returnUrl,
+      cancelUrl: input.cancelUrl,
       callbackUrl: input.callbackUrl,
     };
 
-    const res = await this.request<InvoiceResponse>("/v1/merchant/invoices", "POST", payload);
-
-    const invoice: InvoiceData =
-      (res.data as InvoiceData) ||
-      ({
-        id: res.id || (res as any).invoiceId,
-        orderId: res.orderId || payload.orderId,
-        amount: res.amount || payload.amount,
-        currency: res.currency || payload.currency,
-        status: (res.status as any) || "PENDING",
-        checkoutUrl: res.checkoutUrl || res.paymentUrl || (res as any).url,
-        createdAt: new Date().toISOString(),
-      } as InvoiceData);
+    const res = await this.request<Record<string, unknown>>("/v1/gateway/invoices", "POST", payload);
+    const raw = (res.invoice || res.data || res) as Record<string, unknown>;
+    const invoice = normalizeInvoice({ ...raw, orderId: raw.orderId || payload.orderId });
 
     if (!invoice.checkoutUrl) {
       throw new Error("K Khay API did not return a checkoutUrl for the invoice.");
@@ -135,23 +183,22 @@ export class KkhayTelegram {
    * Retrieve invoice status.
    */
   public async getInvoice(invoiceId: string): Promise<InvoiceData> {
-    const res = await this.request<InvoiceResponse>(
-      `/v1/merchant/invoices/${encodeURIComponent(invoiceId.trim())}`,
+    const res = await this.request<Record<string, unknown>>(
+      `/v1/gateway/invoices/${encodeURIComponent(invoiceId.trim())}`,
       "GET"
     );
 
-    return (
-      (res.data as InvoiceData) ||
-      ({
-        id: res.id || invoiceId,
-        orderId: res.orderId,
-        amount: res.amount,
-        currency: res.currency,
-        status: res.status,
-        checkoutUrl: res.checkoutUrl || res.paymentUrl,
-        createdAt: (res as any).createdAt || new Date().toISOString(),
-      } as InvoiceData)
-    );
+    const raw = (res.invoice || res.data || res) as Record<string, unknown>;
+    return normalizeInvoice({ ...raw, id: raw.id || invoiceId });
+  }
+
+  /**
+   * Health check for Gateway API.
+   */
+  public async checkHealth(): Promise<{ status: string }> {
+    const res = await this.request<Record<string, unknown>>("/health", "GET");
+    const data = (res.data || res) as { status: string };
+    return data;
   }
 
   /**
@@ -162,12 +209,13 @@ export class KkhayTelegram {
     options: TelegramInvoiceRenderOptions = {}
   ): InlineKeyboardMarkup {
     const useMiniApp = options.useMiniApp ?? true;
-    const payText = options.payButtonText || "💳 Pay with Crypto (USDT, USDC, BNB, ETH)";
+    const payText = options.payButtonText || "💳 Pay with Crypto (190+ Chains)";
     const checkText = options.checkStatusButtonText || "🔄 Check Status";
+    const targetUrl = invoice.hostedUrl || invoice.checkoutUrl;
 
     const payButton = useMiniApp
-      ? { text: payText, web_app: { url: invoice.checkoutUrl } }
-      : { text: payText, url: invoice.checkoutUrl };
+      ? { text: payText, web_app: { url: targetUrl } }
+      : { text: payText, url: targetUrl };
 
     const checkButton = {
       text: checkText,
@@ -206,9 +254,9 @@ export class KkhayTelegram {
       `🧾 <b>${orderTitle}</b>`,
       ``,
       `💰 <b>Amount:</b> <code>${amountStr} ${currencyStr}</code>`,
-      `⚡ <b>Supported:</b> USDT, USDC, BNB, ETH`,
-      `🌐 <b>Networks:</b> BSC, Polygon, Arbitrum, Base, Ethereum`,
-      `⏳ <b>Status:</b> <b>${invoice.status || "PENDING"}</b>`,
+      `⚡ <b>Supported:</b> USDT, USDC, BTC, ETH, SOL, TON, BNB, TRX, DOGE, XRP, LTC`,
+      `🌐 <b>Networks:</b> 190+ Chains (BSC, Polygon, Arbitrum, Base, Ethereum, Solana, TON, Tron, Bitcoin, etc.)`,
+      `⏳ <b>Status:</b> <b>${invoice.status || "WAITING"}</b>`,
       ``,
       `<i>Tap below to complete payment with instant on-chain settlement.</i>`,
     ].join("\n");
@@ -228,7 +276,9 @@ export class KkhayTelegram {
   public formatPaidMessage(invoice: InvoiceData): string {
     const amountStr = Number(invoice.amountPaid || invoice.amount).toFixed(2);
     const network = invoice.network || "Blockchain";
-    const txHash = invoice.txHash ? `<code>${invoice.txHash.substring(0, 10)}...${invoice.txHash.slice(-8)}</code>` : "Confirmed";
+    const txHash = invoice.txHash
+      ? `<code>${invoice.txHash.substring(0, 10)}...${invoice.txHash.slice(-8)}</code>`
+      : "Confirmed";
 
     return [
       `✅ <b>Payment Received!</b>`,
@@ -283,4 +333,3 @@ export class KkhayTelegram {
     return JSON.parse(bodyStr) as WebhookEvent;
   }
 }
-
